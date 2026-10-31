@@ -996,7 +996,8 @@ void UARTDriver::_timer_tick(void)
 uint64_t UARTDriver::receive_time_constraint_us(uint16_t nbytes)
 {
     uint64_t last_receive_us = _receive_timestamp;
-    if (_uart_baudrate > 0) {
+    // A simulated device hands its bytes over at once: they spent no time on the wire.
+    if (_uart_baudrate > 0 && _sim_serial_device == nullptr) {
         // assume 10 bits per byte. 
         uint32_t transport_time_us = (1000000UL * 10UL / _uart_baudrate) * (nbytes+available());
         last_receive_us -= transport_time_us;
