@@ -544,8 +544,10 @@ class Board:
 
         if cfg.env.DEST_OS == 'darwin':
             if self.cc_version_gte(cfg, 15, 0):
+                # The classic linker is gone from recent Xcode; the new one rejects the packed AP_FWVersion's
+                # unaligned pointers in chained fixups, which -no_fixup_chains turns off as -ld_classic did.
                 env.LINKFLAGS += [
-                    '-Wl,-dead_strip,-ld_classic',
+                    '-Wl,-dead_strip,-no_fixup_chains',
                 ]
             else:
                 env.LINKFLAGS += [
