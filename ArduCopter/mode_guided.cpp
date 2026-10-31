@@ -940,7 +940,24 @@ void ModeGuided::posvelaccel_control_run()
         // set the current commanded xy pos to the target pos
         guided_pos_target_ned_m.xy() = pos_control->get_pos_desired_NED_m().xy();
     }
-    pos_control->input_pos_vel_accel_NE_m(guided_pos_target_ned_m.xy(), guided_vel_target_ned_ms.xy(), guided_accel_target_ned_mss.xy(), false);
+    // guided_pos_target z-axis should never be a terrain altitude
+    if (guided_is_terrain_alt) {
+        INTERNAL_ERROR(AP_InternalError::error_t::flow_of_control);
+    }
+
+    if (option_is_enabled(Option::TargetsShapedExternally)) {
+        // The targets already form a feasible trajectory (an external planner shapes them): track them as they are,
+        // advancing them between updates as the shaping inputs do, but without shaping the desired state toward them.
+        pos_control->set_pos_vel_accel_NED_m(guided_pos_target_ned_m, guided_vel_target_ned_ms, guided_accel_target_ned_mss);
+        const float dt_s = pos_control->get_dt_s();
+        update_pos_vel_accel_xy(guided_pos_target_ned_m.xy(), guided_vel_target_ned_ms.xy(), guided_accel_target_ned_mss.xy(), dt_s, Vector2f(), Vector2f(), Vector2f());
+        update_pos_vel_accel(guided_pos_target_ned_m.z, guided_vel_target_ned_ms.z, guided_accel_target_ned_mss.z, dt_s, 0.0, 0.0, 0.0);
+    } else {
+        pos_control->input_pos_vel_accel_NE_m(guided_pos_target_ned_m.xy(), guided_vel_target_ned_ms.xy(), guided_accel_target_ned_mss.xy(), false);
+        float pz = guided_pos_target_ned_m.z;
+        pos_control->input_pos_vel_accel_D_m(pz, guided_vel_target_ned_ms.z, guided_accel_target_ned_mss.z, false);
+        guided_pos_target_ned_m.z = pz;
+    }
     if (!stabilizing_vel_NE()) {
         // set position and velocity errors to zero
         pos_control->NE_stop_vel_stabilisation();
@@ -948,15 +965,6 @@ void ModeGuided::posvelaccel_control_run()
         // set position errors to zero
         pos_control->NE_stop_pos_stabilisation();
     }
-
-    // guided_pos_target z-axis should never be a terrain altitude
-    if (guided_is_terrain_alt) {
-        INTERNAL_ERROR(AP_InternalError::error_t::flow_of_control);
-    }
-
-    float pz = guided_pos_target_ned_m.z;
-    pos_control->input_pos_vel_accel_D_m(pz, guided_vel_target_ned_ms.z, guided_accel_target_ned_mss.z, false);
-    guided_pos_target_ned_m.z = pz;
 
     // run position controllers
     pos_control->NE_update_controller();
